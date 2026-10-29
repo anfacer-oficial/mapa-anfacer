@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa das Empresas Anfacer</title>
+<meta name="description" content="Mapa interativo das empresas associadas à Anfacer: revestimentos cerâmicos, porcelanatos e louças cerâmicas, por estado e cidade.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#E20A17; --red-20:#F9CED1; --red-10:#FCE6E8; --red-d:#7C060D;
+    --blue:#0078C1; --blue-20:#CCE4F3; --blue-10:#E6F2F9; --blue-d:#00426A;
+    --green:#00894B; --green-20:#CCE7DB; --green-10:#E6F3ED; --green-d:#004B29;
+    --yellow:#FDC124; --yellow-20:#FFF3D3; --yellow-10:#FFF9E9; --yellow-d:#8B6A14;
+    --orange:#FD7217; --orange-20:#FFE3D1; --orange-10:#FFF1E8; --orange-d:#8B3F0D;
+    --ink:#1E1E1E; --text:#333; --muted:#6B7078; --faint:#9AA0A8; --line:#E2E5E9;
+    --bg:#F5F6F7; --card:#FFFFFF; --nav:#008656;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:'Poppins',system-ui,sans-serif;font-size:14px;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font:inherit;color:inherit}
+  .shell{max-width:1440px;margin:0 auto;padding:0 28px}
+
+  /* Topo (some com ?embed=1) */
+  .navbar{background:var(--nav)}
+  .navbar .shell{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .navbar .logo{display:block;height:32px;width:auto}
+  .navbar .nav-link{color:#fff;font-size:13px;font-weight:500}
+  body.embed .navbar{display:none}
+
+  .hero{padding:30px 0 22px}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin:0 0 6px}
+  h1{font-size:32px;line-height:1.15;font-weight:600;color:var(--ink);margin:0;text-wrap:balance}
+  .sub{margin:8px 0 0;color:var(--muted);font-size:15px;max-width:640px;line-height:1.55;text-wrap:pretty}
+
+  /* Grade principal */
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 340px 280px;grid-template-areas:"kpis search search" "map list filters";gap:16px 28px;align-items:start;padding-bottom:28px}
+  .kpis{grid-area:kpis;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .searchrow{grid-area:search;display:flex;gap:10px;align-self:start}
+  .mapcol{grid-area:map}
+  .listpanel{grid-area:list;align-self:stretch;position:relative;min-height:420px}
+  .filters{grid-area:filters;display:flex;flex-direction:column;gap:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px}
+
+  .kpi{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px 24px}
+  .kpi .ico{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;flex:none}
+  .kpi b{font-size:26px;font-weight:600;color:var(--ink);line-height:1}
+  .kpi span{font-size:15px;color:var(--text)}
+
+  .search{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:0 10px 0 14px;height:44px}
+  .search:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-10)}
+  .search input{flex:1;width:0;border:0;outline:0;font:inherit;font-size:14px;background:transparent;color:var(--ink);min-width:0}
+  .search input::placeholder{color:var(--faint);text-align:center}
+  .search input:focus::placeholder{text-align:left}
+  .iconbtn{border:0;background:none;cursor:pointer;width:32px;height:32px;display:grid;place-items:center;border-radius:6px;color:var(--ink)}
+  .iconbtn:hover{background:var(--bg)}
+  .filterbtn{display:none;position:relative;width:44px;height:44px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;place-items:center}
+  .filterbtn .dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--orange);display:none}
+  .filterbtn.on .dot{display:block}
+
+  /* Mapa */
+  .mapwrap{position:relative;overflow:hidden}
+  #map{width:100%;height:auto;display:block;cursor:grab;touch-action:none;border-radius:10px}
+  #map:active{cursor:grabbing}
+  .state{transition:fill-opacity .2s ease;cursor:pointer;stroke:#fff;stroke-width:1.1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+  .state:hover{fill-opacity:.75}
+  .state.dim{fill-opacity:.35}
+  .state-sel{fill:none;stroke:var(--ink);stroke-width:1.8;stroke-linejoin:round;pointer-events:none;vector-effect:non-scaling-stroke}
+  .mun path{fill:none;stroke:#fff;stroke-opacity:.8;stroke-width:.6;vector-effect:non-scaling-stroke;pointer-events:none}
+  .mun path.host{fill-opacity:.35;stroke:#fff;stroke-opacity:1;stroke-width:1;pointer-events:auto;cursor:pointer}
+  .mun path.host:hover{fill-opacity:.55}
+  .mun path.host.on{fill-opacity:.6}
+  .uf-label{font-weight:600;fill-opacity:.5;pointer-events:none;text-anchor:middle}
+
+  .bubble{cursor:pointer}
+  .bubble circle.b{stroke:#fff;stroke-width:2.5;transition:filter .15s}
+  .bubble.multi circle.b{fill:#fff !important;stroke-width:3}
+  .bubble:hover circle.b{filter:brightness(1.12)}
+  .bubble text.n{font-size:12px;font-weight:600;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+  .bubble text.c{font-size:12px;font-weight:600;fill:var(--ink);paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round;pointer-events:none}
+  .bubble.dim{opacity:.25}
+  .bubble.ghost{opacity:.35}
+  .spider line{stroke:var(--ink);stroke-opacity:.3;stroke-width:1.2}
+  .pin{cursor:pointer}
+  .pin circle{fill:#fff;stroke-width:2.5;transition:fill .15s}
+  .pin text{font-size:10.5px;font-weight:600;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+  .pin:hover text,.pin.hot text{fill:#fff !important}
+  .pin.dim{opacity:.25}
+
+  .crumbs{position:absolute;top:14px;left:14px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 10px;font-size:12.5px;font-weight:600;max-width:calc(100% - 80px)}
+  .crumbs button{border:0;background:none;padding:0;color:var(--blue);cursor:pointer;font-weight:500}
+  .crumbs button:hover{text-decoration:underline}
+  .crumbs .sep{color:var(--faint)}
+  .zoomctl{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .zoomctl button{width:38px;height:38px;border:0;background:#fff;cursor:pointer;color:var(--ink);display:grid;place-items:center;font-size:20px;line-height:1}
+  .zoomctl button+button{border-top:1px solid var(--line)}
+  .zoomctl button:hover{background:var(--bg)}
+  .maphint{position:absolute;left:14px;bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:6px;padding:7px 11px;font-size:12px;color:var(--muted)}
+  .maphint .sw{display:inline-flex;align-items:center;gap:6px}
+  .maphint i{display:inline-block;width:11px;height:11px;border-radius:50%}
+
+  .tooltip{position:fixed;pointer-events:none;z-index:150;background:var(--ink);color:#fff;padding:8px 11px;border-radius:8px;font-size:12.5px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .12s;max-width:260px}
+  .tooltip b{font-weight:600}
+  .tooltip .r{opacity:.75}
+
+  /* Lista de empresas */
+  .listinner{position:absolute;inset:0;display:flex;flex-direction:column;padding:22px 18px 16px}
+  .listhead{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text);margin:0}
+  .listsub{font-size:13px;color:var(--faint);margin:2px 0 14px}
+  .list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+  .item{display:grid;grid-template-columns:76px 1fr 18px;gap:14px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:12px 14px;cursor:pointer;background:#fff;text-align:left;width:100%}
+  .item:hover,.item:focus-visible{border-color:var(--blue);outline:none;box-shadow:0 0 0 3px var(--blue-10)}
+  .logo-box{width:76px;height:40px;display:grid;place-items:center;overflow:hidden}
+  .logo-box img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+  .mono{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;background:var(--bg);color:var(--muted);font-weight:600;font-size:14px}
+  .item .nm{font-weight:600;font-size:16px;color:var(--ink);line-height:1.25;display:block}
+  .item .tags{margin-top:4px}
+  .item .chev{color:var(--faint)}
+  .empty{color:var(--muted);font-size:13.5px;background:var(--bg);border-radius:8px;padding:14px;line-height:1.5}
+
+  /* Etiquetas de tipo de produto */
+  .tags{display:flex;flex-wrap:wrap;gap:5px}
+  .tt{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:500;line-height:1;padding:4px 7px;border-radius:4px;white-space:nowrap}
+  .tt i{width:6px;height:6px;border-radius:50%;flex:none}
+  .tt.lg{font-size:12px;padding:5px 8px;gap:6px}
+  .tt.lg i{width:7px;height:7px}
+  .tt.blue{background:var(--blue-20);color:var(--blue-d)} .tt.blue i{background:var(--blue)}
+  .tt.green{background:var(--green-20);color:var(--green-d)} .tt.green i{background:var(--green)}
+  .tt.orange{background:var(--orange-20);color:var(--orange-d)} .tt.orange i{background:var(--orange)}
+
+  /* Filtros */
+  .fpanel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:22px 18px 18px}
+  .flabel{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  .flist{display:flex;flex-direction:column;gap:8px}
+  .fbtn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid var(--line);background:#fff;border-radius:6px;padding:8px 10px;cursor:pointer;text-align:left;font-size:13px;color:var(--ink)}
+  .fbtn:hover{border-color:var(--faint)}
+  .fbtn[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .fbtn:disabled{cursor:default;color:#C3C7CC}
+  .fbtn:disabled:hover{border-color:var(--line)}
+  .cnt{min-width:40px;text-align:center;font-size:12.5px;font-weight:600;border-radius:999px;padding:3px 10px;line-height:1.3}
+  .cnt.blue{background:var(--blue-20);color:var(--ink)} .cnt.green{background:var(--green-20);color:var(--ink)} .cnt.orange{background:var(--orange-20);color:var(--ink)}
+  .cnt.s-green{background:var(--green);color:#fff} .cnt.s-blue{background:var(--blue);color:#fff} .cnt.s-orange{background:var(--orange);color:#fff}
+  .cnt.s-yellow{background:var(--yellow);color:var(--ink)} .cnt.s-red{background:var(--red);color:#fff}
+  .fbtn:disabled .cnt{background:#F1F2F4 !important;color:#C3C7CC !important}
+  .drawerhead{display:none}
+  .clearf{border:0;background:none;color:var(--blue);font-size:12.5px;cursor:pointer;padding:0;align-self:flex-start;display:none}
+  .clearf.on{display:block}
+
+  footer.notes{border-top:1px solid var(--line);padding:16px 0 40px;color:var(--muted);font-size:12.5px;line-height:1.6}
+
+  /* Popup da empresa */
+  .modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(30,30,30,.45)}
+  .modal.open{display:flex;animation:fade .15s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .dialog{background:#fff;border:1px solid var(--blue);border-radius:12px;width:min(620px,100%);max-height:calc(100vh - 40px);overflow:auto;position:relative;padding:30px 30px 28px;box-shadow:0 24px 64px rgba(0,0,0,.25)}
+  .close{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:6px;border:0;background:none;cursor:pointer;display:grid;place-items:center;color:var(--faint)}
+  .close:hover{color:var(--ink);background:var(--bg)}
+  .dlg-head{display:grid;grid-template-columns:140px 1fr auto;gap:28px;align-items:start}
+  .dlg-logo{width:140px;height:90px;border:1px solid var(--line);border-radius:6px;display:grid;place-items:center;overflow:hidden;padding:10px;background:#fff}
+  .dlg-logo img{max-width:100%;max-height:100%;object-fit:contain}
+  .dlg-logo .mono{width:56px;height:56px;font-size:20px}
+  .dlg-head h3{margin:8px 0 0;font-size:34px;font-weight:500;line-height:1.1;color:var(--ink);letter-spacing:-.01em;word-break:break-word}
+  .dlg-head .grp{margin:4px 0 0;color:var(--muted);font-size:13px}
+  .social{display:flex;gap:6px;margin-top:8px}
+  .social a{color:var(--faint);display:grid;place-items:center;width:24px;height:24px}
+  .social a:hover{color:var(--ink)}
+  .social a.wa{color:var(--green)}
+  .dlg-tags{display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-top:10px;margin-right:18px}
+  .dlg-photo{margin-top:26px;width:100%;height:200px;object-fit:cover;border-radius:6px;display:block;background:var(--bg)}
+  dl.info{display:grid;grid-template-columns:110px 1fr;gap:12px 16px;margin:24px 0 0;font-size:13px;align-items:center}
+  dl.info dt{color:var(--faint);font-size:12px}
+  dl.info dd{margin:0;line-height:1.45;word-break:break-word;color:var(--ink)}
+  dl.info dd a{color:var(--ink)}
+  dl.info dd a:hover{color:var(--blue)}
+  .otag{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:4px;padding:3px 9px;background:#fff;margin:0 6px 4px 0}
+  .sect{margin-top:26px}
+  .sect h4{margin:0 0 12px;font-size:13px;font-weight:400;color:var(--faint)}
+  .certs{display:flex;flex-wrap:wrap;gap:12px}
+  .cert{position:relative;display:inline-flex;align-items:center;gap:8px;border:1px solid;border-radius:6px;padding:6px 10px;font-size:14px;font-weight:500;background:#fff}
+  .cert.green{border-color:var(--green);color:var(--green)}
+  .cert.blue{border-color:var(--blue);color:var(--blue)}
+  .cert.yellow{border-color:var(--yellow);color:var(--yellow-d)}
+  .cert .q{border:0;background:none;padding:0;margin-left:6px;cursor:help;color:var(--faint);display:grid;place-items:center;width:18px;height:18px}
+  .cert .q:hover,.cert .q:focus-visible{color:var(--ink);outline:none}
+  .cert .tip{position:absolute;left:0;bottom:calc(100% + 10px);width:260px;background:var(--ink);color:#fff;font-size:12px;font-weight:400;line-height:1.5;padding:10px 12px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;visibility:hidden;transform:translateY(4px);transition:all .15s;z-index:5}
+  .cert .tip::after{content:"";position:absolute;left:var(--arrow,calc(100% - 26px));top:100%;border:6px solid transparent;border-top-color:var(--ink)}
+  .cert.show .tip,.cert .q:hover + .tip,.cert .q:focus-visible + .tip{opacity:1;visibility:visible;transform:none}
+  .prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
+  .prod{display:block;background:#F2F3F4;border-radius:6px;padding:7px 7px 10px;color:var(--ink);font-size:11.5px;line-height:1.35;position:relative}
+  .prod:hover{text-decoration:none;background:#EAECEE}
+  .prod .img{width:100%;aspect-ratio:4/3;border-radius:3px;background:#DDE0E3 center/cover no-repeat;margin-bottom:8px;display:grid;place-items:center;color:var(--faint)}
+  .prod .arr{position:absolute;right:8px;bottom:30px}
+  .prod span{display:block;padding-right:16px}
+
+  @media (max-width:1180px){
+    .layout{grid-template-columns:minmax(0,1fr) 300px;grid-template-areas:"kpis kpis" "search search" "map map" "list filters"}
+    .listpanel{min-height:560px}
+  }
+  @media (max-width:760px){
+    .shell{padding:0 16px}
+    h1{font-size:26px}
+    .layout{grid-template-columns:minmax(0,1fr);grid-template-areas:"search" "map" "list";gap:16px}
+    .kpis{display:none}
+    .filterbtn{display:grid}
+    .listpanel{min-height:0}
+    .listinner{position:static;max-height:560px}
+    .filters{position:fixed;inset:0 0 0 auto;width:min(320px,90vw);background:#fff;z-index:120;padding:22px 18px;overflow:auto;transform:translateX(100%);transition:transform .2s ease;box-shadow:-12px 0 32px rgba(0,0,0,.15);gap:22px}
+    .filters.open{transform:none}
+    .filters .fpanel{border:0;padding:0}
+    .drawerhead{display:flex;align-items:center;justify-content:space-between}
+    .drawerhead strong{font-size:20px;font-weight:500;color:var(--ink)}
+    .scrim{position:fixed;inset:0;background:rgba(30,30,30,.35);z-index:110;display:none}
+    .scrim.open{display:block}
+    .maphint{display:none}
+    .dialog{padding:24px 18px 20px}
+    .dlg-head{grid-template-columns:96px 1fr;gap:16px}
+    .dlg-logo{width:96px;height:64px}
+    .dlg-head h3{font-size:24px;margin-top:2px}
+    .dlg-tags{grid-column:1 / -1;flex-direction:row;flex-wrap:wrap;align-items:flex-start;padding:0;margin:0}
+    dl.info{grid-template-columns:90px 1fr}
+    .cert .tip{width:220px}
+  }
+</style>
+</head>
+<body>
+<nav class="navbar"><div class="shell">
+  <a href="https://www.anfacer.org.br/" aria-label="Anfacer — página inicial"><svg class="logo" viewBox="10 8 786 214" fill="#fff" role="img" aria-label="Anfacer"><g>
+<path d="M60.64,174.92l-6.24-8.69c-14.49-20.18-27.53-39.31-38.76-56.84L14.09,107l1.8-2.25a353.830,353.83,0,0,1,72-67.45l11.25-7.91L93.84,42.07Q92.42,45.54,91,49C79.21,77.14,67.05,106.26,61.640,164.27Zm-36.7-67.41C33.1,121.72,43.44,137,54.76,153c5.49-48.17,15.78-75.58,26.17-100.67a345.44,345.44,0,0,0-57,55.23"/>
+<path d="M93.46,218.35l-3.79-4.83c-.12-.15-11.83-15.09-27.7-36.85l-3.74-5.11,6.22-1.18c10.76-2,38-6.34,58.45-2.46l7.06,1.34-4.85,5.29C105.48,196,96.44,212.76,96.35,212.93Zm-21.22-41.2c8.86,12,16.06,21.51,20.12,26.78a235.6,235.6,0,0,1,21.81-29.13c-14.77-1.34-31.9.76-41.930,2.35"/>
+<path d="M63.46,178.72,62,176.67q-3.640-5-7.57-10.44L53.53,165l.14-1.49C59.2,104.31,71.59,74.62,83.58,45.9Q85,42.47,86.45,39l.44-1.07,1-.67C111,21,127.3,13.77,128,13.47l2.16-1L132,14c.06,0,6.29,4.82,16.12,12.58l3.3,2.61-2.77,3.17c-7.07,8-18.39,24.47-14.86,43.95,3.16,17.48,17.61,33.250,43,46.88l5.86,3.15-5.52,3.7a287.26,287.26,0,0,0-52,44.55l-1.51,1.65-2.19-.42c-19.65-3.73-47.43.94-55.47,2.47Zm-1.68-15.94q2.64,3.670,5.17,7.15c11.58-2.06,35-5.36,53.75-2.39A295.14,295.14,0,0,1,167.31,127c-24.11-14.16-38-30.73-41.38-49.32-3.68-20.35,6.17-37.48,14-47.41-5-3.92-8.77-6.85-10.89-8.49A270.41,270.41,0,0,0,93.39,43.15C92.59,45.1,91.78,47,91,49,79.31,76.9,67.26,105.77,61.78,162.78"/>
+<path d="M175.12,131.34,173,130.2c-27.61-14.84-43.44-32.51-47-52.5-4.12-22.79,8.7-41.52,16.71-50.65l2.51-2.86,3,2.35c17.59,13.9,51.7,41.32,82.48,68.870l4.75,4.26-5.9,2.42A297.09,297.09,0,0,0,177.12,130Zm-28.87-96.1c-6.92,8.74-15.57,23.67-12.43,41,3.07,17,16.82,32.37,40.87,45.74a305,305,0,0,1,45.89-24.83C193,72.72,163.47,48.9,146.25,35.24"/>
+<polygon points="342.81 136.04 342.81 189.13 299.18 136.04 281.99 136.04 281.99 216.04 299.18 216.04 299.18 162.95 342.81 216.04 360 216.04 360 136.04 342.81 136.04"/>
+<polygon points="443.98 153.23 443.98 136.04 374.04 136.04 374.04 216.04 391.23 216.04 391.23 189.89 434.01 189.89 434.01 174.38 391.23 174.38 391.23 153.23 443.98 153.23"/>
+<polygon points="700.97 153.23 700.97 136.04 649 136.04 632.32 136.04 631.8 136.04 631.8 215.91 632.32 215.91 632.32 216.04 700.97 216.04 700.97 198.85 649 198.85 649 183.87 690.7 183.87 690.7 168.35 649 168.35 649 153.23 700.97 153.23"/>
+<path d="M599.43,192.27A25.56,25.56,0,0,1,582,199c-13.83,0-25-10.71-25-23.94s11.21-23.94,25-23.94a25.53,25.53,0,0,1,17.71,7h21.64c-6.76-14.35-21.83-24.35-39.35-24.35-23.83,0-43.150,18.47-43.15,41.26s19.32,41.27,43.15,41.27c17.41,0,32.4-9.87,39.22-24.07Z"/>
+<path d="M791.65,163a26.82,26.82,0,0,0-26.73-26.91H728.68v0H711.49v80h17.19V189.89h25.7L769,216.05h20l-15.42-27.59A26.92,26.92,0,0,0,791.65,163m-26.79,11.31h-36.1V153.12h36.1c5.49,0,9.94,4.8,9.94,10.62s-4.45,10.55-9.94,10.55"/>
+<path d="M268,171.64c-.75-21-18.62-37.88-40.49-37.88S187.77,150.57,187,171.58V216h17.2V189.89H250.8V216H268Zm-64.24,2.65a24.13,24.13,0,0,1,6.83-15.86,22.67,22.67,0,0,1,16.95-7.06,22.34,22.34,0,0,1,16.61,7.06,25.51,25.51,0,0,1,7.1,15.86Z"/>
+<path d="M530.66,171.64c-.75-21-18.62-37.88-40.49-37.88s-39.73,16.81-40.48,37.82V216h17.19V189.89h46.6V216h17.19Zm-64.24,2.65a24.19,24.19,0,0,1,6.84-15.86,22.64,22.64,0,0,1,16.94-7.06,22.37,22.37,0,0,1,16.62,7.06,25.56,25.56,0,0,1,7.1,15.86Z"/>
+</g></svg></a>
+  <a class="nav-link" href="https://www.anfacer.org.br/">anfacer.org.br</a>
+</div></nav>
+
+<header class="hero"><div class="shell">
+  <p class="eyebrow">Anfacer</p>
+  <h1>Mapa das empresas</h1>
+  <p class="sub">Encontre fabricantes de revestimentos cerâmicos, porcelanatos e louças cerâmicas de todo o Brasil. Aproxime o mapa para ver as cidades e clique em uma empresa para ver contatos, certificados e produtos.</p>
+</div></header>
+
+<main class="shell">
+  <div class="layout">
+    <div class="kpis">
+      <div class="kpi"><span class="ico" style="background:var(--blue-10);color:var(--blue)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 21V10l6-4v4l6-4v4l6-4v15H3z"/><path d="M7 17h2M11 17h2M15 17h2"/></svg></span><b id="k-emp">0</b><span>empresas</span></div>
+      <div class="kpi"><span class="ico" style="background:var(--green-10);color:var(--green)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span><b id="k-uf">0</b><span>estados</span></div>
+      <div class="kpi"><span class="ico" style="background:var(--orange-10);color:var(--orange)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span><b id="k-city">0</b><span>cidades</span></div>
+    </div>
+
+    <div class="searchrow">
+      <label class="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9AA0A8" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg>
+        <input id="q" type="search" placeholder="empresa, marca, tipo" autocomplete="off" aria-label="Buscar empresa, marca ou tipo de produto">
+        <button class="iconbtn" id="qclear" type="button" aria-label="Limpar busca"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </label>
+      <button class="filterbtn" id="fopen" type="button" aria-label="Abrir filtros" aria-controls="filters"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5z"/></svg><span class="dot"></span></button>
+    </div>
+
+    <section class="panel mapwrap mapcol" aria-label="Mapa">
+      <svg id="map" role="img" aria-label="Mapa do Brasil com as empresas por estado e cidade"></svg>
+      <nav class="crumbs" id="crumbs" aria-label="Navegação do mapa"></nav>
+      <div class="zoomctl">
+        <button type="button" id="zin" aria-label="Aproximar">+</button>
+        <button type="button" id="zout" aria-label="Afastar">−</button>
+        <button type="button" id="zreset" aria-label="Ver o Brasil inteiro"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+      <div class="maphint">
+        <span class="sw"><i style="background:#333"></i>Empresas na cidade</span>
+        <span class="sw"><i style="background:#fff;box-shadow:inset 0 0 0 2.5px #333"></i>Várias cidades — aproxime</span>
+      </div>
+    </section>
+
+    <section class="panel listpanel" aria-label="Empresas">
+      <div class="listinner">
+        <p class="listhead" id="d-head"></p>
+        <p class="listsub">Clique nos cards para ver detalhes</p>
+        <div id="d-list" class="list" role="list"></div>
+      </div>
+    </section>
+
+    <div class="scrim" id="scrim"></div>
+    <aside class="filters" id="filters" aria-label="Filtros">
+      <div class="drawerhead"><strong>Filtro</strong><button class="iconbtn" id="fclose" type="button" aria-label="Fechar filtros"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <div class="fpanel">
+        <p class="flabel">Tipo de produto</p>
+        <div class="flist" id="f-tipos"></div>
+      </div>
+      <div class="fpanel">
+        <p class="flabel">Por região</p>
+        <div class="flist" id="f-regions"></div>
+      </div>
+      <button class="clearf" id="fclear" type="button">Limpar filtros</button>
+    </aside>
+  </div>
+
+  <footer class="notes">
+    Dados conforme cadastro Anfacer. A localização indica a cidade da sede ou da fábrica principal de cada empresa; empresas com mais de uma unidade aparecem em cada cidade. Para atualizar informações, fale com a Anfacer: <a href="mailto:info@anfacer.org.br">info@anfacer.org.br</a>.
+  </footer>
+</main>
+
+<div class="tooltip" id="tt" role="tooltip"></div>
+
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="m-name">
+    <button class="close" type="button" id="m-close" aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div id="m-body"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="topo.js"></script>
+<script src="data.js"></script>
+<script>
+const BR_TOPO = window.BR_TOPO;
+const EMPRESAS = window.EMPRESAS;   // dados em data.js
+const LOGO_BASE = 'https://cdn.prod.website-files.com/60c391bbead50a2cf81a319b/';  // pasta CMS do site Anfacer
+
+const COLORS = {
+  green:{s:'#00894B',t30:'#B3DCC9',t12:'#E0F1E9',d:'#004B29'},
+  blue:{s:'#0078C1',t30:'#B3D7EC',t12:'#E0EFF8',d:'#00426A'},
+  orange:{s:'#FD7217',t30:'#FED5B9',t12:'#FFEEE3',d:'#8B3F0D'},
+  yellow:{s:'#FDC124',t30:'#FEECBD',t12:'#FFF8E4',d:'#8B6A14'},
+  red:{s:'#E20A17',t30:'#F6B6B9',t12:'#FCE2E3',d:'#7C060D'}
+};
+const REGIONS = [
+  {id:'Sudeste',c:'green'},{id:'Sul',c:'blue'},{id:'Nordeste',c:'orange'},{id:'Centro-Oeste',c:'yellow'},{id:'Norte',c:'red'}
+];
+const RC = Object.fromEntries(REGIONS.map(r=>[r.id, COLORS[r.c]]));
+const TIPOS = [
+  {id:'revestimento', label:'Revestimento Cerâmico', c:'blue'},
+  {id:'porcelanato',  label:'Porcelanato',           c:'green'},
+  {id:'louca',        label:'Louça Cerâmica',        c:'orange'}
+];
+const TIPO = Object.fromEntries(TIPOS.map(t=>[t.id,t]));
+const CERTS = {
+  porcelanato:{label:'Porcelanato Qualificado', c:'green',
+    icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1l2.6 2.2 3.4-.4.9 3.3 3 1.7-1.3 3.2 1.3 3.2-3 1.7-.9 3.3-3.4-.4L12 23l-2.6-2.2-3.4.4-.9-3.3-3-1.7 1.3-3.2L2.1 9.8l3-1.7.9-3.3 3.4.4L12 1z"/><path d="M8 12.2l2.7 2.6L16.2 9" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    tip:'Selo da Qualidade da Anfacer. Identifica porcelanatos que atendem aos requisitos da norma NBR ISO 13006, com testes em laboratório e auditorias periódicas.'},
+  sustentavel:{label:'Anfacer + Sustentável', c:'blue',
+    icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3C9 3 4 9 4 15c0 1.6.4 3 1 4.2L3 21.6 4.4 23l2.2-2.2C7.9 21.6 9.4 22 11 22c6 0 10-6 9-19zM8 18c2-4 5-7 9-9-3 3-5.5 6-7.5 10L8 18z"/></svg>',
+    tip:'Empresa participante da Iniciativa Anfacer + Sustentável, que reúne o compromisso do setor de revestimento cerâmico brasileiro com a sustentabilidade.'},
+  psq:{label:'PSQ', c:'yellow',
+    icon:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9.3-8 11-4.5-1.7-8-6-8-11V5l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5" stroke-linecap="round"/></svg>',
+    tip:'Programa Setorial da Qualidade. Testes laboratoriais e auditorias periódicas, com coordenação técnica do Centro Cerâmico do Brasil, verificam resistência, absorção de água e desempenho das placas cerâmicas.'}
+};
+const SOCIAL_ICONS = {
+  whatsapp:'<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.3-.4.3-.4.8-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.2 2.2 2.2 0 00.1-1.2c0-.1-.2-.2-.4-.3z"/></svg>',
+  instagram:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
+  facebook:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9.5"/><path d="M13.5 21v-7.5H16l.4-3h-2.9V8.8c0-.8.3-1.4 1.4-1.4h1.6V4.8a19 19 0 00-2.3-.1c-2.3 0-3.7 1.4-3.7 3.9v1.9H8v3h2.5V21"/></svg>',
+  linkedin:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 10.5V17M8 7.5v.1M12 17v-3.6c0-1.7 1-2.6 2.2-2.6s2 .8 2 2.6V17M12 10.5V17"/></svg>'
+};
+const UF_REGION = {AC:'Norte',AP:'Norte',AM:'Norte',PA:'Norte',RO:'Norte',RR:'Norte',TO:'Norte',
+ AL:'Nordeste',BA:'Nordeste',CE:'Nordeste',MA:'Nordeste',PB:'Nordeste',PE:'Nordeste',PI:'Nordeste',RN:'Nordeste',SE:'Nordeste',
+ DF:'Centro-Oeste',GO:'Centro-Oeste',MT:'Centro-Oeste',MS:'Centro-Oeste',
+ ES:'Sudeste',MG:'Sudeste',RJ:'Sudeste',SP:'Sudeste',PR:'Sul',RS:'Sul',SC:'Sul'};
+const UF_NAME = {AC:'Acre',AL:'Alagoas',AP:'Amapá',AM:'Amazonas',BA:'Bahia',CE:'Ceará',DF:'Distrito Federal',ES:'Espírito Santo',GO:'Goiás',MA:'Maranhão',MT:'Mato Grosso',MS:'Mato Grosso do Sul',MG:'Minas Gerais',PA:'Pará',PB:'Paraíba',PR:'Paraná',PE:'Pernambuco',PI:'Piauí',RJ:'Rio de Janeiro',RN:'Rio Grande do Norte',RS:'Rio Grande do Sul',RO:'Rondônia',RR:'Roraima',SC:'Santa Catarina',SP:'São Paulo',SE:'Sergipe',TO:'Tocantins'};
+
+const CITY_K = 2.4;   // a partir deste zoom o mapa mostra cidades em vez de estados
+const MAX_K = 120;
+const CLUSTER_PX = 30;
+
+/* ---------- dados derivados ---------- */
+const byId = new Map(EMPRESAS.map(a=>[a.id,a]));
+const CITIES = [];
+{
+  const m = new Map();
+  EMPRESAS.forEach(a=>a.locais.forEach(l=>{
+    const key = l.city+'|'+l.uf;
+    if(!m.has(key)){ const c={key, city:l.city, uf:l.uf, ibge:l.ibge, region:UF_REGION[l.uf], lat:l.lat, lon:l.lon, items:[]}; m.set(key,c); CITIES.push(c); }
+    m.get(key).items.push(a);
+  }));
+  CITIES.forEach(c=>c.items.sort((x,y)=>x.name.localeCompare(y.name,'pt')));
+}
+const cityByKey = new Map(CITIES.map(c=>[c.key,c]));
+const ufsOf = a => [...new Set(a.locais.map(l=>l.uf))];
+const regionsOf = a => [...new Set(a.locais.map(l=>UF_REGION[l.uf]))];
+const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+EMPRESAS.forEach(a=>{ a._s = norm([a.name,a.grupo,...a.marcas,...a.tipos.map(t=>TIPO[t].label),...a.locais.map(l=>l.city+' '+l.uf+' '+UF_NAME[l.uf])].join(' ')); });
+const initials = n => n.replace(/^(Grupo|Dexco|Cerâmica)\s+/i,'').split(/[\s/]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const plural = (n,s,p) => n===1 ? s : p;
+const tagsHTML = (a, lg) => a.tipos.map(t=>`<span class="tt ${TIPO[t].c}${lg?' lg':''}"><i></i>${TIPO[t].label}</span>`).join('');
+
+/* ---------- estado ---------- */
+let sel = {type:'all'};      // {type:'all'} | {type:'region',v} | {type:'uf',v} | {type:'city',v:key}
+let tipo = null;             // filtro de tipo de produto
+let query = '';
+let T = d3.zoomIdentity;
+const tt = document.getElementById('tt');
+const matchQ = a => !query || a._s.includes(query);
+const matchF = a => matchQ(a) && (!tipo || a.tipos.includes(tipo));
+const selRegion = () => sel.type==='region' ? sel.v : sel.type==='uf' ? UF_REGION[sel.v] : sel.type==='city' ? cityByKey.get(sel.v).region : null;
+
+function inSel(a){
+  if(sel.type==='region') return regionsOf(a).includes(sel.v);
+  if(sel.type==='uf') return ufsOf(a).includes(sel.v);
+  if(sel.type==='city') return a.locais.some(l=>l.city+'|'+l.uf===sel.v);
+  return true;
+}
+function cityInSel(c){
+  if(sel.type==='region') return c.region===sel.v;
+  if(sel.type==='uf') return c.uf===sel.v;
+  if(sel.type==='city') return c.key===sel.v;
+  return true;
+}
+
+/* ---------- números gerais ---------- */
+document.getElementById('k-emp').textContent = EMPRESAS.length;
+document.getElementById('k-city').textContent = CITIES.length;
+document.getElementById('k-uf').textContent = new Set(CITIES.map(c=>c.uf)).size;
+
+/* ---------- filtros ---------- */
+const fTipos = document.getElementById('f-tipos'), fRegions = document.getElementById('f-regions');
+TIPOS.forEach(t=>{
+  const b=document.createElement('button'); b.type='button'; b.className='fbtn'; b.dataset.tipo=t.id;
+  b.innerHTML=`<span>${t.label}</span><span class="cnt ${t.c}"></span>`;
+  b.onclick=()=>{ tipo = tipo===t.id ? null : t.id; render(); };
+  fTipos.appendChild(b);
+});
+REGIONS.forEach(r=>{
+  const b=document.createElement('button'); b.type='button'; b.className='fbtn'; b.dataset.region=r.id;
+  b.innerHTML=`<span>${r.id}</span><span class="cnt s-${r.c}"></span>`;
+  b.onclick=()=> selRegion()===r.id ? selectAll() : selectRegion(r.id);
+  fRegions.appendChild(b);
+});
+function renderFilters(){
+  const reg = selRegion();
+  fTipos.querySelectorAll('.fbtn').forEach(b=>{
+    const t=b.dataset.tipo;
+    const n=EMPRESAS.filter(a=>matchQ(a) && inSel(a) && a.tipos.includes(t)).length;
+    b.querySelector('.cnt').textContent=n; b.disabled = !n && tipo!==t;
+    b.setAttribute('aria-pressed', String(tipo===t));
+  });
+  fRegions.querySelectorAll('.fbtn').forEach(b=>{
+    const r=b.dataset.region;
+    const n=EMPRESAS.filter(a=>matchF(a) && regionsOf(a).includes(r)).length;
+    b.querySelector('.cnt').textContent=n; b.disabled = !n && reg!==r;
+    b.setAttribute('aria-pressed', String(reg===r));
+  });
+  const active = !!(tipo || sel.type!=='all' || query);
+  document.getElementById('fclear').classList.toggle('on', active);
+  document.getElementById('fopen').classList.toggle('on', !!(tipo || sel.type!=='all'));
+}
+
+/* ---------- mapa ---------- */
+const W = 720, H = 720;
+const svg = d3.select('#map').attr('viewBox',`0 0 ${W} ${H}`);
+const gMap = svg.append('g');
+const gMarkers = svg.append('g');
+const gSpider = svg.append('g').attr('class','spider');
+
+const fc = topojson.feature(BR_TOPO, BR_TOPO.objects.estados);
+const proj = d3.geoMercator().fitExtent([[24,24],[W-24,H-24]], fc);
+const path = d3.geoPath(proj);
+const featByUF = new Map(fc.features.map(f=>[f.id,f]));
+CITIES.forEach(c=>{ const p=proj([c.lon,c.lat]); c.x=p[0]; c.y=p[1]; });
+
+const perUF = d3.rollup(EMPRESAS.flatMap(a=>ufsOf(a)), v=>v.length, d=>d);
+const stateFill = uf => perUF.get(uf) ? RC[UF_REGION[uf]].t30 : RC[UF_REGION[uf]].t12;
+
+const gStates = gMap.append('g');
+const gMun = gMap.append('g').attr('class','mun');
+let statePaths = gStates.selectAll('path.state').data(fc.features, d=>d.id).join('path')
+  .attr('class','state').attr('d',path).attr('fill',d=>stateFill(d.id))
+  .on('mousemove',(e,d)=>{ const n=perUF.get(d.id)||0; showTip(e,`<b>${UF_NAME[d.id]}</b><div class="r">${UF_REGION[d.id]} · ${n} ${plural(n,'empresa','empresas')}</div>`); })
+  .on('mouseleave',hideTip)
+  .on('click',(e,d)=>{ hideTip(); selectUF(d.id); });
+const selPath = gMap.append('path').attr('class','state-sel');
+const ufLabels = gMap.selectAll('text.uf-label').data(fc.features.filter(f=>!perUF.get(f.id))).join('text')
+  .attr('class','uf-label').attr('fill',d=>RC[UF_REGION[d.id]].d)
+  .attr('x',d=>path.centroid(d)[0]).attr('y',d=>path.centroid(d)[1]).attr('dy','.35em').text(d=>d.id);
+
+/* Geometria detalhada (IBGE, carregada em tempo real). Sem internet, fica a versão simplificada embutida. */
+const IBGE_API = 'https://servicodados.ibge.gov.br/api/v3/malhas/';
+const UF_CODE = {11:'RO',12:'AC',13:'AM',14:'RR',15:'PA',16:'AP',17:'TO',21:'MA',22:'PI',23:'CE',24:'RN',25:'PB',26:'PE',27:'AL',28:'SE',29:'BA',31:'MG',32:'ES',33:'RJ',35:'SP',41:'PR',42:'SC',43:'RS',50:'MS',51:'MT',52:'GO',53:'DF'};
+const HOST_MUN = new Map(CITIES.map(c=>[String(c.ibge), c]));
+function rewind(gj){
+  gj.features.forEach(f=>{ if(d3.geoArea(f) > 2*Math.PI){ const g=f.geometry; (g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(p=>p.forEach(r=>r.reverse())); } });
+  return gj;
+}
+fetch(IBGE_API+'paises/BR?formato=application/vnd.geo%2Bjson&qualidade=intermediaria&intrarregiao=UF')
+  .then(r=>r.ok?r.json():Promise.reject()).then(gj=>{
+    rewind(gj).features.forEach(f=>{ f.id = UF_CODE[+f.properties.codarea]; });
+    const feats = gj.features.filter(f=>f.id);
+    if(feats.length<27) return;
+    feats.forEach(f=>featByUF.set(f.id,f));
+    statePaths = statePaths.data(feats, d=>d.id).attr('d',path);
+    render();
+  }).catch(()=>{});
+
+const munCache = new Map();
+function loadMunicipios(uf){
+  if(munCache.has(uf)) return;
+  munCache.set(uf,'loading');
+  fetch(IBGE_API+'estados/'+uf+'?formato=application/vnd.geo%2Bjson&qualidade=minima&intrarregiao=municipio')
+    .then(r=>r.ok?r.json():Promise.reject()).then(gj=>{ munCache.set(uf, rewind(gj).features); drawMunicipios(); })
+    .catch(()=>munCache.delete(uf));
+}
+function drawMunicipios(){
+  const feats = [...munCache.values()].filter(Array.isArray).flat();
+  gMun.selectAll('path').data(feats, d=>d.properties.codarea).join(enter=>enter.append('path')
+      .attr('d',path)
+      .each(function(d){ const c=HOST_MUN.get(String(d.properties.codarea)); if(c) d3.select(this).classed('host',true).attr('fill',RC[c.region].s); })
+      .on('mousemove',(e,d)=>{ const c=HOST_MUN.get(String(d.properties.codarea)); if(c) showTip(e,`<b>${c.city} / ${c.uf}</b><div class="r">${c.items.length} ${plural(c.items.length,'empresa','empresas')} · clique para ver</div>`); })
+      .on('mouseleave',hideTip)
+      .on('click',(e,d)=>{ const c=HOST_MUN.get(String(d.properties.codarea)); if(c){ e.stopPropagation(); hideTip(); selectCity(c.key); } }))
+    .classed('on', d=> sel.type==='city' && HOST_MUN.get(String(d.properties.codarea))?.key===sel.v);
+  gMun.style('display', T.k >= CITY_K ? null : 'none');
+}
+function maybeLoadMunicipios(){
+  if(T.k < CITY_K) return;
+  const [x0,y0] = T.invert([0,0]), [x1,y1] = T.invert([W,H]);
+  [...perUF.keys()].forEach(uf=>{
+    const b = path.bounds(featByUF.get(uf));
+    if(b[1][0] >= x0 && b[0][0] <= x1 && b[1][1] >= y0 && b[0][1] <= y1) loadMunicipios(uf);
+  });
+}
+
+const zoom = d3.zoom().scaleExtent([1,MAX_K]).translateExtent([[-W*.25,-H*.25],[W*1.25,H*1.25]])
+  .on('zoom', e=>{ T = e.transform; gMap.attr('transform',T); styleZoomLayer(); drawMarkers(); })
+  .on('end', ()=>{ maybeLoadMunicipios(); });
+svg.call(zoom).on('dblclick.zoom',null);
+
+function styleZoomLayer(){
+  ufLabels.attr('font-size',11/T.k).style('display',T.k<CITY_K*2?null:'none');
+  gMun.style('display', T.k >= CITY_K ? null : 'none');
+}
+
+/* agrupamento: estados (zoom afastado) ou cidades agrupadas por proximidade na tela */
+const UF_ANCHOR_FIX = {SC:[-27.2,-49.6], BA:[-12.6,-39.6], PE:[-8.3,-36.6], MG:[-20.6,-44.4], ES:[-19.8,-40.6]};
+function ufAnchor(uf){ return UF_ANCHOR_FIX[uf] ? proj([UF_ANCHOR_FIX[uf][1],UF_ANCHOR_FIX[uf][0]]) : path.centroid(featByUF.get(uf)); }
+const bubbleR = n => 11 + Math.sqrt(n)*3.2;
+function relax(gs){
+  for(let it=0; it<40; it++){
+    let moved=false;
+    for(let i=0;i<gs.length;i++) for(let j=i+1;j<gs.length;j++){
+      const A=gs[i], B=gs[j];
+      const dx=(B.x-A.x)*T.k, dy=(B.y-A.y)*T.k, d=Math.hypot(dx,dy)||0.01;
+      const min=bubbleR(A.n)+bubbleR(B.n)+3;
+      if(d<min){ const push=(min-d)/2/T.k, ux=dx/d, uy=dy/d;
+        const wa = A.n>=B.n ? .3 : .7, wb = 1-wa;
+        A.x-=ux*push*2*wa; A.y-=uy*push*2*wa; B.x+=ux*push*2*wb; B.y+=uy*push*2*wb; moved=true; }
+    }
+    if(!moved) break;
+  }
+  return gs;
+}
+function groupsForView(){
+  const vis = CITIES.filter(c=> c.items.some(matchF));
+  const exclude = sel.type==='city' ? sel.v : null;
+  const countOf = cs => new Set(cs.flatMap(c=>c.items.filter(matchF).map(a=>a.id))).size;
+  if(T.k < CITY_K){
+    const gs = d3.groups(vis.filter(c=>c.key!==exclude), c=>c.uf).map(([uf,cs])=>({
+      kind:'uf', id:'uf-'+uf, uf, region:UF_REGION[uf], cities:cs,
+      x:ufAnchor(uf)[0], y:ufAnchor(uf)[1], n:countOf(cs) }));
+    return relax(gs);
+  }
+  const selC = exclude ? cityByKey.get(exclude) : null;
+  const clear = selC ? spiderRadius(selC.items.length) + 22 : 0;
+  const pts = vis.filter(c=>c.key!==exclude)
+    .filter(c=> !selC || Math.hypot(T.applyX(c.x)-T.applyX(selC.x), T.applyY(c.y)-T.applyY(selC.y)) > clear)
+    .map(c=>({c, sx:T.applyX(c.x), sy:T.applyY(c.y), n:c.items.filter(matchF).length}))
+    .sort((a,b)=>b.n-a.n);
+  const used = new Set(), out=[];
+  pts.forEach(p=>{
+    if(used.has(p)) return;
+    const members = pts.filter(q=>!used.has(q) && Math.hypot(q.sx-p.sx,q.sy-p.sy) < CLUSTER_PX);
+    members.forEach(m=>used.add(m));
+    const cs = members.map(m=>m.c);
+    out.push({ kind: cs.length>1?'multi':'city', id: cs.map(c=>c.key).sort().join('~'), region:cs[0].region, cities:cs,
+      x:d3.mean(cs,c=>c.x), y:d3.mean(cs,c=>c.y), n:countOf(cs) });
+  });
+  return out;
+}
+
+function drawMarkers(){
+  const groups = groupsForView();
+  const showCityLabel = T.k >= CITY_K*1.5;
+  gMarkers.selectAll('g.bubble').data(groups, d=>d.id).join(
+    enter=>{
+      const g = enter.append('g').attr('class','bubble').attr('tabindex',0).attr('role','button');
+      g.append('circle').attr('class','b');
+      g.append('text').attr('class','n');
+      g.append('text').attr('class','c');
+      g.on('mousemove',(e,d)=>showTip(e,tipFor(d))).on('mouseleave',hideTip)
+       .on('click',(e,d)=>{ e.stopPropagation(); hideTip(); clickGroup(d); })
+       .on('keydown',(e,d)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); clickGroup(d); } });
+      return g;
+    })
+    .classed('multi',d=>d.kind==='multi')
+    .classed('dim',d=> sel.type!=='all' && sel.type!=='city' && !d.cities.some(cityInSel))
+    .classed('ghost',d=> sel.type==='city')
+    .attr('aria-label',d=>labelFor(d))
+    .attr('transform',d=>`translate(${T.applyX(d.x)},${T.applyY(d.y)})`)
+    .each(function(d){
+      const r = bubbleR(d.n), col = RC[d.region];
+      const g = d3.select(this);
+      g.select('circle.b').attr('r',r).attr('fill',col.s).attr('stroke', d.kind==='multi' ? col.s : '#fff');
+      g.select('text.n').text(d.n).style('fill', d.kind==='multi' ? col.d : '#fff');
+      g.select('text.c').attr('x',r+5).attr('dy','.35em')
+        .text(d.kind==='city' && showCityLabel ? d.cities[0].city : (d.kind==='uf' ? '' : (showCityLabel? d.cities[0].city+' +'+(d.cities.length-1):'')));
+    });
+  drawSpider();
+}
+function labelFor(d){
+  const e = `${d.n} ${plural(d.n,'empresa','empresas')}`;
+  if(d.kind==='uf') return `${UF_NAME[d.uf]}: ${e}`;
+  if(d.kind==='city') return `${d.cities[0].city} / ${d.cities[0].uf}: ${e}`;
+  return `${d.cities.length} cidades próximas: ${e}`;
+}
+function tipFor(d){
+  if(d.kind==='uf') return `<b>${UF_NAME[d.uf]}</b><div class="r">${d.n} ${plural(d.n,'empresa','empresas')} em ${d.cities.length} ${plural(d.cities.length,'cidade','cidades')}</div>`;
+  if(d.kind==='city'){ const c=d.cities[0]; const names=c.items.filter(matchF).map(a=>a.name);
+    return `<b>${c.city} / ${c.uf}</b><div class="r">${names.slice(0,6).join(', ')}${names.length>6?' e mais '+(names.length-6):''}</div>`; }
+  return `<b>${d.cities.map(c=>c.city).join(', ')}</b><div class="r">${d.n} ${plural(d.n,'empresa','empresas')} · clique para aproximar</div>`;
+}
+function clickGroup(d){
+  if(d.kind==='uf') return selectUF(d.uf);
+  if(d.kind==='city') return selectCity(d.cities[0].key);
+  zoomToBounds(boundsOfPoints(d.cities), 3);
+}
+
+/* empresas da cidade selecionada, em leque ao redor do ponto */
+function spiderRadius(n){ return n===1 ? 0 : Math.max(46, 15*n/Math.PI + 18); }
+function drawSpider(){
+  const c = sel.type==='city' ? cityByKey.get(sel.v) : null;
+  const sp = gSpider.selectAll('g.sp').data(c ? [c] : [], d=>d.key).join(enter=>enter.append('g').attr('class','sp'));
+  if(!c) return;
+  const col = RC[c.region];
+  const cx=T.applyX(c.x), cy=T.applyY(c.y);
+  const n = c.items.length, R = spiderRadius(n);
+  const pos = c.items.map((a,i)=>{ const ang = -Math.PI/2 + i*2*Math.PI/n; return {a, x:cx+R*Math.cos(ang), y:cy+R*Math.sin(ang)}; });
+  sp.selectAll('line').data(n>1?pos:[]).join('line').attr('x1',cx).attr('y1',cy).attr('x2',d=>d.x).attr('y2',d=>d.y);
+  sp.selectAll('circle.center').data(n>1?[0]:[]).join('circle').attr('class','center').attr('r',4).attr('cx',cx).attr('cy',cy).attr('fill',col.d);
+  sp.selectAll('g.pin').data(pos, d=>d.a.id).join(enter=>{
+      const g = enter.append('g').attr('class','pin').attr('tabindex',0).attr('role','button');
+      g.append('circle').attr('r',15); g.append('text');
+      g.on('mousemove',(e,d)=>showTip(e,`<b>${esc(d.a.name)}</b><div class="r">clique para ver detalhes</div>`))
+       .on('mouseenter',function(){ d3.select(this).select('circle').style('fill',col.s); })
+       .on('mouseleave',function(){ hideTip(); d3.select(this).select('circle').style('fill',null); })
+       .on('click',(e,d)=>{ e.stopPropagation(); hideTip(); openModal(d.a.id); })
+       .on('keydown',(e,d)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openModal(d.a.id); } });
+      return g; })
+    .attr('aria-label',d=>d.a.name)
+    .classed('dim',d=>!matchF(d.a))
+    .attr('transform',d=>`translate(${d.x},${d.y})`)
+    .call(g=>g.select('circle').attr('stroke',col.s))
+    .select('text').attr('fill',col.d).text(d=>initials(d.a.name));
+}
+
+/* ---------- zoom ---------- */
+function boundsOfPoints(cs){ const xs=cs.map(c=>c.x), ys=cs.map(c=>c.y); return [[d3.min(xs),d3.min(ys)],[d3.max(xs),d3.max(ys)]]; }
+function zoomToBounds([[x0,y0],[x1,y1]], minK=1, maxK=MAX_K){
+  const dx=Math.max(x1-x0,1), dy=Math.max(y1-y0,1);
+  let k = Math.min(maxK, .82/Math.max(dx/W, dy/H));
+  k = Math.max(k, minK);
+  const t = d3.zoomIdentity.translate(W/2,H/2).scale(k).translate(-(x0+x1)/2,-(y0+y1)/2);
+  svg.transition().duration(750).call(zoom.transform, t);
+}
+function zoomToCity(c){
+  const dmin = d3.min(CITIES.filter(o=>o!==c).map(o=>Math.hypot(o.x-c.x,o.y-c.y))) || 10;
+  const need = spiderRadius(c.items.length) + 50;   // cidades vizinhas ficam fora do leque
+  const k = Math.min(MAX_K, Math.max(T.k, CITY_K*2, need/dmin));
+  const t = d3.zoomIdentity.translate(W/2,H/2).scale(k).translate(-c.x,-c.y);
+  svg.transition().duration(750).call(zoom.transform, t);
+}
+function featuresBounds(feats){
+  const bs = feats.map(f=>path.bounds(f));
+  return [[d3.min(bs,b=>b[0][0]),d3.min(bs,b=>b[0][1])],[d3.max(bs,b=>b[1][0]),d3.max(bs,b=>b[1][1])]];
+}
+document.getElementById('zin').onclick = ()=> svg.transition().duration(350).call(zoom.scaleBy, 1.8);
+document.getElementById('zout').onclick = ()=> svg.transition().duration(350).call(zoom.scaleBy, 1/1.8);
+document.getElementById('zreset').onclick = ()=> selectAll();
+
+/* ---------- seleção ---------- */
+function selectAll(){ sel={type:'all'}; svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity); render(); }
+function selectRegion(r){
+  sel={type:'region',v:r};
+  zoomToBounds(featuresBounds(fc.features.filter(f=>UF_REGION[f.id]===r)), 1, 6);
+  render();
+}
+function selectUF(uf){
+  sel={type:'uf',v:uf};
+  zoomToBounds(path.bounds(featByUF.get(uf)), 1, 14);
+  loadMunicipios(uf);
+  render();
+}
+function selectCity(key){
+  sel={type:'city',v:key};
+  zoomToCity(cityByKey.get(key));
+  loadMunicipios(cityByKey.get(key).uf);
+  render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  const selUF = sel.type==='uf' ? sel.v : sel.type==='city' ? cityByKey.get(sel.v).uf : null;
+  statePaths.classed('dim', d=>{
+    if(sel.type==='region') return UF_REGION[d.id]!==sel.v;
+    if(selUF) return d.id!==selUF;
+    return false;
+  });
+  selPath.attr('d', selUF ? path(featByUF.get(selUF)) : null);
+  styleZoomLayer();
+  drawMunicipios();
+  drawMarkers();
+  renderCrumbs();
+  renderFilters();
+  renderList();
+}
+
+function renderCrumbs(){
+  const el = document.getElementById('crumbs');
+  const parts = [{t:'Brasil', f:selectAll}];
+  if(sel.type==='region') parts.push({t:sel.v});
+  if(sel.type==='uf'){ parts.push({t:UF_REGION[sel.v], f:()=>selectRegion(UF_REGION[sel.v])}); parts.push({t:UF_NAME[sel.v]}); }
+  if(sel.type==='city'){ const c=cityByKey.get(sel.v);
+    parts.push({t:c.region, f:()=>selectRegion(c.region)}); parts.push({t:UF_NAME[c.uf], f:()=>selectUF(c.uf)}); parts.push({t:c.city}); }
+  el.innerHTML='';
+  parts.forEach((p,i)=>{
+    if(i){ const s=document.createElement('span'); s.className='sep'; s.textContent='›'; el.appendChild(s); }
+    if(i<parts.length-1 && p.f){ const b=document.createElement('button'); b.type='button'; b.textContent=p.t; b.onclick=p.f; el.appendChild(b); }
+    else { const s=document.createElement('span'); s.textContent=p.t; el.appendChild(s); }
+  });
+}
+
+function renderList(){
+  const visible = EMPRESAS.filter(a=>inSel(a) && matchF(a)).sort((a,b)=>a.name.localeCompare(b.name,'pt'));
+  const ufs = new Set(visible.flatMap(a=>a.locais.filter(l=>cityInSel(cityByKey.get(l.city+'|'+l.uf))).map(l=>l.uf)));
+  document.getElementById('d-head').textContent =
+    `${visible.length} ${plural(visible.length,'empresa','empresas')} em ${ufs.size} ${plural(ufs.size,'estado','estados')}`;
+  const list=document.getElementById('d-list'); list.innerHTML='';
+  if(!visible.length){
+    list.innerHTML = `<div class="empty">${query ? 'Nenhuma empresa encontrada para “'+esc(query)+'” nesta seleção.' : 'Nenhuma empresa nesta seleção.'}</div>`;
+    return;
+  }
+  visible.forEach(a=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='item'; b.setAttribute('role','listitem');
+    b.innerHTML = `<span class="logo-box">${logoHTML(a)}</span>
+      <span><span class="nm">${esc(a.name)}</span><span class="tags">${tagsHTML(a)}</span></span>
+      <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>`;
+    b.onclick = ()=>openModal(a.id);
+    b.onmouseenter = ()=> d3.selectAll('.pin').classed('hot', d=>d.a.id===a.id).select('circle').style('fill', d=>d.a.id===a.id ? RC[cityByKey.get(sel.v)?.region||'Sudeste'].s : null);
+    b.onmouseleave = ()=> d3.selectAll('.pin').classed('hot', false).select('circle').style('fill', null);
+    list.appendChild(b);
+  });
+}
+
+function logoHTML(a){
+  if(!a.logo) return `<span class="mono">${esc(initials(a.name))}</span>`;
+  return `<img src="${esc(LOGO_BASE+a.logo)}" alt="Logo ${esc(a.name)}" loading="lazy" data-ini="${esc(initials(a.name))}" onerror="logoFail(this)">`;
+}
+function logoFail(img){ const s=document.createElement('span'); s.className='mono'; s.textContent=img.dataset.ini; img.replaceWith(s); }
+
+/* ---------- popup da empresa ---------- */
+const modal = document.getElementById('modal');
+let lastFocus = null;
+const SOCIAL_URL = {
+  whatsapp: v => /^https?:/.test(v) ? v : 'https://wa.me/'+v.replace(/\D/g,''),
+  instagram: v => /^https?:/.test(v) ? v : 'https://instagram.com/'+v.replace(/^@/,''),
+  facebook: v => /^https?:/.test(v) ? v : 'https://facebook.com/'+v,
+  linkedin: v => /^https?:/.test(v) ? v : 'https://www.linkedin.com/company/'+v
+};
+function openModal(id){
+  const a = byId.get(id); if(!a) return;
+  lastFocus = document.activeElement;
+  const soc = Object.entries(a.social||{}).filter(([k,v])=>v && SOCIAL_ICONS[k])
+    .map(([k,v])=>`<a class="${k==='whatsapp'?'wa':''}" href="${esc(SOCIAL_URL[k](v))}" target="_blank" rel="noopener" aria-label="${k}">${SOCIAL_ICONS[k]}</a>`).join('');
+  const rows = [['Localização', a.locais.map(l=>`${esc(l.city)} / ${l.uf}`).join('<br>')]];
+  if(a.marcas.length) rows.push(['Marcas', a.marcas.map(m=>`<span class="otag">${esc(m)}</span>`).join('')]);
+  if(a.producao.length) rows.push(['Produção', a.producao.map(m=>`<span class="otag">${esc(m)}</span>`).join('')]);
+  if(a.site) rows.push(['website', `<a href="${esc(a.site)}" target="_blank" rel="noopener">${esc(a.site.replace(/^https?:\/\//,'').replace(/\/$/,''))}</a>`]);
+  if(a.email) rows.push(['e-mail', `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>`]);
+  if(a.tel) rows.push(['telefone', esc(a.tel)]);
+  const certs = Object.keys(CERTS).filter(k=>a.selos[k]).map(k=>{ const c=CERTS[k];
+    return `<span class="cert ${c.c}">${c.icon}${c.label}<button class="q" type="button" aria-label="O que é ${c.label}?"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.3a2.5 2.5 0 014.8.9c0 1.7-2.4 2.2-2.4 3.6M12 17h.01" stroke-linecap="round"/></svg></button><span class="tip" role="tooltip">${c.tip}</span></span>`; }).join('');
+  const arrow = '<svg class="arr" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M8 7h9v9"/></svg>';
+  const prods = (a.produtos||[]).map(p=>`<a class="prod" href="${esc(p.url||a.catalogo||'#')}" target="_blank" rel="noopener"><span class="img" style="${p.imagem?`background-image:url('${esc(p.imagem)}')`:''}"></span>${arrow}<span>Coleção</span><span>${esc(p.titulo||'')}</span><span>${esc(p.subtitulo||'')}</span></a>`);
+  if(a.catalogo) prods.push(`<a class="prod" href="${esc(a.catalogo)}" target="_blank" rel="noopener"><span class="img"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2V5z"/><path d="M4 19a2 2 0 012-2h13"/></svg></span>${arrow}<span>Catálogo</span><span>completo</span></a>`);
+
+  document.getElementById('m-body').innerHTML = `
+    <div class="dlg-head">
+      <div class="dlg-logo">${logoHTML(a)}</div>
+      <div><h3 id="m-name">${esc(a.name)}</h3>${a.grupo && a.grupo!==a.name ? `<p class="grp">${esc(a.grupo)}</p>`:''}${soc?`<div class="social">${soc}</div>`:''}</div>
+      <div class="dlg-tags">${tagsHTML(a,true)}</div>
+    </div>
+    ${a.foto ? `<img class="dlg-photo" src="${esc(a.foto)}" alt="Fábrica ${esc(a.name)}">` : ''}
+    <dl class="info">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    ${certs ? `<div class="sect"><h4>Certificados</h4><div class="certs">${certs}</div></div>` : ''}
+    ${prods.length ? `<div class="sect"><h4>Produtos</h4><div class="prods">${prods.join('')}</div></div>` : ''}`;
+  document.querySelectorAll('#m-body .cert').forEach(c=>{
+    const q=c.querySelector('.q');
+    q.addEventListener('click',e=>{ e.stopPropagation(); const on=!c.classList.contains('show'); document.querySelectorAll('#m-body .cert.show').forEach(x=>x.classList.remove('show')); c.classList.toggle('show',on); });
+    // posiciona a seta do balão sobre o ícone de interrogação
+    const tip=c.querySelector('.tip'); tip.style.setProperty('--arrow', (q.offsetLeft + 3)+'px');
+  });
+  modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+  document.querySelectorAll('#m-body .cert .tip').forEach(tip=>{ const q=tip.previousElementSibling; tip.style.setProperty('--arrow',(q.offsetLeft+3)+'px'); });
+  document.body.style.overflow='hidden';
+  document.getElementById('m-close').focus();
+  history.replaceState(null,'','#empresa='+a.id);
+}
+function closeModal(){
+  modal.classList.remove('open'); modal.setAttribute('aria-hidden','true');
+  document.body.style.overflow='';
+  history.replaceState(null,'',location.pathname+location.search);
+  if(lastFocus) lastFocus.focus();
+}
+document.getElementById('m-close').onclick = closeModal;
+modal.addEventListener('click', e=>{
+  if(e.target===modal) return closeModal();
+  if(!e.target.closest('.cert')) document.querySelectorAll('#m-body .cert.show').forEach(x=>x.classList.remove('show'));
+});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(modal.classList.contains('open')) closeModal(); else closeDrawer(); } });
+
+/* ---------- tooltip do mapa ---------- */
+function showTip(e,html){ tt.innerHTML=html; tt.style.opacity=1;
+  const x = Math.min(e.clientX+14, innerWidth - tt.offsetWidth - 8); tt.style.left=x+'px'; tt.style.top=(e.clientY-12)+'px'; }
+function hideTip(){ tt.style.opacity=0; }
+
+/* ---------- busca e filtros no celular ---------- */
+const qEl = document.getElementById('q');
+qEl.addEventListener('input',()=>{ query=norm(qEl.value.trim()); render(); });
+document.getElementById('qclear').addEventListener('click',()=>{ qEl.value=''; query=''; render(); qEl.focus(); });
+document.getElementById('fclear').addEventListener('click',()=>{ qEl.value=''; query=''; tipo=null; selectAll(); });
+const drawer = document.getElementById('filters'), scrim = document.getElementById('scrim');
+function openDrawer(){ drawer.classList.add('open'); scrim.classList.add('open'); }
+function closeDrawer(){ drawer.classList.remove('open'); scrim.classList.remove('open'); }
+document.getElementById('fopen').onclick = openDrawer;
+document.getElementById('fclose').onclick = closeDrawer;
+scrim.onclick = closeDrawer;
+
+/* ---------- início ---------- */
+if(/[?&]embed=1/.test(location.search)) document.body.classList.add('embed');
+render();
+const deep = location.hash.match(/(?:empresa|associado)=([\w-]+)/);
+if(deep && byId.has(deep[1])) openModal(deep[1]);
+</script>
+</body>
+</html>
